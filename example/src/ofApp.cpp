@@ -21,6 +21,8 @@ void ofApp::setup(){
     // whisperSettings.language  = "en"; //"spoken language\n",
     // whisperSettings.model     = "models/ggml-base.en.bin"; //"model path\n",
         
+    whisperSettings.step_ms    = 500;
+    whisperSettings.length_ms  = 5000;
     
     whisper.setup(whisperSettings);
     ofSoundStreamSettings settings;
@@ -65,6 +67,7 @@ void ofApp::update(){
         textQueue.push_back(newText);
     }
     while(textQueue.size() > 50){
+        ofLog()<<"textQueue front: "<<textQueue.front();
         textQueue.pop_front();
     }
 }

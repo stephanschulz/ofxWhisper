@@ -248,6 +248,19 @@ extern "C" {
     WHISPER_API int whisper_n_audio_ctx     (struct whisper_context * ctx);
     WHISPER_API int whisper_is_multilingual (struct whisper_context * ctx);
 
+    WHISPER_API int whisper_model_n_vocab      (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_audio_ctx  (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_audio_state(struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_audio_head (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_audio_layer(struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_text_ctx   (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_text_state (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_text_head  (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_text_layer (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_n_mels       (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_f16          (struct whisper_context * ctx);
+    WHISPER_API int whisper_model_type         (struct whisper_context * ctx);
+
     // Token logits obtained from the last call to whisper_decode()
     // The logits for the last token are stored in the last row
     // Rows: n_tokens
@@ -257,6 +270,8 @@ extern "C" {
 
     // Token Id -> String. Uses the vocabulary in the provided context
     WHISPER_API const char * whisper_token_to_str(struct whisper_context * ctx, whisper_token token);
+    WHISPER_API const char * whisper_model_type_readable(struct whisper_context * ctx);
+
 
     // Special tokens
     WHISPER_API whisper_token whisper_token_eot (struct whisper_context * ctx);
@@ -290,6 +305,9 @@ extern "C" {
     // Called on every newly generated text segment
     // Use the whisper_full_...() functions to obtain the text segments
     typedef void (*whisper_new_segment_callback)(struct whisper_context * ctx, struct whisper_state * state, int n_new, void * user_data);
+
+    // Progress callback
+    typedef void (*whisper_progress_callback)(struct whisper_context * ctx, struct whisper_state * state, int progress, void * user_data);
 
     // Encoder begin callback
     // If not NULL, called before the encoder starts
@@ -341,6 +359,7 @@ extern "C" {
 
         // tokens to provide to the whisper decoder as initial prompt
         // these are prepended to any existing text context from a previous call
+        const char * initial_prompt;
         const whisper_token * prompt_tokens;
         int prompt_n_tokens;
 
@@ -375,6 +394,10 @@ extern "C" {
         // called for every newly generated text segment
         whisper_new_segment_callback new_segment_callback;
         void * new_segment_callback_user_data;
+
+        // called on each progress update
+        whisper_progress_callback progress_callback;
+        void * progress_callback_user_data;
 
         // called each time before the encoder starts
         whisper_encoder_begin_callback encoder_begin_callback;
@@ -462,7 +485,9 @@ extern "C" {
     // Temporary helpers needed for exposing ggml interface
 
     WHISPER_API int whisper_bench_memcpy(int n_threads);
+    WHISPER_API const char * whisper_bench_memcpy_str(int n_threads);
     WHISPER_API int whisper_bench_ggml_mul_mat(int n_threads);
+    WHISPER_API const char * whisper_bench_ggml_mul_mat_str(int n_threads);
 
 #ifdef __cplusplus
 }
