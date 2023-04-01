@@ -21,10 +21,10 @@ void ofApp::setup(){
     // whisperSettings.language  = "en"; //"spoken language\n",
     // whisperSettings.model     = "models/ggml-base.en.bin"; //"model path\n",
         
-    whisperSettings.step_ms    = 0;
-//    whisperSettings.length_ms  = 5000;
+    whisperSettings.step_ms    = 500;
+    whisperSettings.length_ms  = 5000;
     
-    whisper.setup(whisperSettings);
+    whisper.setup(whisperSettings, false);
     ofSoundStreamSettings settings;
     soundStream.printDeviceList();
 
@@ -66,7 +66,7 @@ void ofApp::update(){
     while(whisper.textChannel.tryReceive(newText)){
         textQueue.push_back(newText);
     }
-    while(textQueue.size() > 50){
+    while(textQueue.size() > 20){
         ofLog()<<"textQueue front: "<<textQueue.front();
         textQueue.pop_front();
     }
@@ -81,6 +81,8 @@ void ofApp::draw(){
         ofDrawBitmapStringHighlight(t, 20, y );
         y += r.height + 8;	
     }
+    
+    if(textQueue.empty() == false) ofDrawBitmapStringHighlight(textQueue.back(), 20, ofGetHeight() - 40 );
 }
 
 //--------------------------------------------------------------

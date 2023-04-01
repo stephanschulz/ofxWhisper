@@ -22,7 +22,7 @@ ofxWhisper::~ofxWhisper(){
         whisper_print_timings(ctx);
         whisper_free(ctx);
     }
- 
+    
 }
 
 //-----------------------------------------------------------------------------------------------
@@ -48,7 +48,7 @@ std::string ofxWhisper::getInfoString(){
 }
 
 //-----------------------------------------------------------------------------------------------
-void ofxWhisper::setup(ofxWhisperSettings _settings){
+void ofxWhisper::setup(ofxWhisperSettings _settings, bool _use_vad){
     this->settings = _settings;
     settings.model = ofToDataPath(settings.model, true);
     settings.keep_ms   = std::min(settings.keep_ms,   settings.step_ms);
@@ -58,8 +58,10 @@ void ofxWhisper::setup(ofxWhisperSettings _settings){
     n_samples_len  = (1e-3*settings.length_ms)*WHISPER_SAMPLE_RATE;
     n_samples_keep = (1e-3*settings.keep_ms  )*WHISPER_SAMPLE_RATE;
     
-    //use_vad = n_samples_step <= 0; // sliding window mode uses VAD
-    use_vad = true;
+    use_vad = n_samples_step <= 0; // sliding window mode uses VAD
+    if(use_vad) ofLog()<<"use VAD";
+//    use_vad = true;
+//    use_vad = _use_vad;
     
     n_new_line = !use_vad ? std::max(1, settings.length_ms / settings.step_ms - 1) : 1; // number of steps to print new line
     
@@ -108,32 +110,73 @@ void ofxWhisper::update(){
     // process new audio
     if(audio_input == nullptr) return;
     
-    const auto t_now  = ofGetElapsedTimeMillis();
-    const auto t_diff = (t_now - t_last);
-    
-    if (t_diff < 2000) {
-        
-        // what is the point of this? collect 2000 milis of audio?
-        //std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        sleep(100);
-        
-        return;
-    }
     std::vector<float> pcmf32_new;
+
     std::vector<float> pcmf32;
     
-    audio_input->get(2000, pcmf32_new);
-    
-    if (::vad_simple(pcmf32_new, WHISPER_SAMPLE_RATE, 1000, settings.vad_thold, settings.freq_thold, false)) {
-        audio_input->get(settings.length_ms, pcmf32);
-    } else {
-        sleep(100);
+    if (!use_vad) {
+        while (true) {
+            audio_input->get(settings.step_ms, pcmf32_new);
+            
+            if ((int) pcmf32_new.size() > 2*n_samples_step) {
+                fprintf(stderr, "\n\n%s: WARNING: cannot process audio fast enough, dropping audio ...\n\n", __func__);
+                audio_input->clear();
+                continue;
+            }
+            
+            if ((int) pcmf32_new.size() >= n_samples_step) {
+                audio_input->clear();
+                break;
+            }
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
         
-        return;
+        const int n_samples_new = pcmf32_new.size();
+        
+        // take up to params.length_ms audio from previous iteration
+        const int n_samples_take = std::min((int) pcmf32_old.size(), std::max(0, n_samples_keep + n_samples_len - n_samples_new));
+        
+//        printf("processing: take = %d, new = %d, old = %d\n", n_samples_take, n_samples_new, (int) pcmf32_old.size());
+  
+        
+        pcmf32.resize(n_samples_new + n_samples_take);
+        
+        for (int i = 0; i < n_samples_take; i++) {
+            pcmf32[i] = pcmf32_old[pcmf32_old.size() - n_samples_take + i];
+        }
+        
+        memcpy(pcmf32.data() + n_samples_take, pcmf32_new.data(), n_samples_new*sizeof(float));
+        
+        printf("processing: take = %d, new = %d, old = %d\n", n_samples_take, n_samples_new, (int) pcmf32_old.size());
+        printf("pcmf32 = %d\n", (int) pcmf32.size());
+        
+        pcmf32_old = pcmf32;
+    }else{
+        const auto t_now  = ofGetElapsedTimeMillis();
+        const auto t_diff = (t_now - t_last);
+        
+        if (t_diff < 2000) {
+            
+            // what is the point of this? collect 2000 milis of audio?
+            //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            sleep(100);
+            
+            return;
+        }
+        
+        audio_input->get(2000, pcmf32_new);
+        
+        if (::vad_simple(pcmf32_new, WHISPER_SAMPLE_RATE, 1000, settings.vad_thold, settings.freq_thold, false)) {
+            audio_input->get(settings.length_ms, pcmf32);
+        } else {
+            sleep(100);
+            
+            return;
+        }
+        
+        t_last = t_now;
     }
-    
-    t_last = t_now;
-    
     
     // run the inference
     {
@@ -164,18 +207,24 @@ void ofxWhisper::update(){
             return ;
         }
         
+        // prepare result for print;
         {
+            
             stringstream ss;
             
             const int n_segments = whisper_full_n_segments(ctx);
             for (int i = 0; i < n_segments; ++i) {
                 string text (whisper_full_get_segment_text(ctx, i));
+               
+                // defined as params.no_timestamps  = !use_vad;
                 if (settings.no_timestamps == false) {
-                
+                    
                     const int64_t t0 = whisper_full_get_segment_t0(ctx, i);
                     const int64_t t1 = whisper_full_get_segment_t1(ctx, i);
                     
                     ss << "[" << to_timestamp(t0) << " --> "<< to_timestamp(t1) << "]" ;
+                } else {
+                 
                 }
                 ss << text;
                 if(i < n_segments -1){

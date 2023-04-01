@@ -38,6 +38,8 @@ struct ofxWhisperSettings {
     std::string language  = "en"; //"spoken language\n",
     std::string model     = "models/ggml-base.en.bin"; //"model path\n",
     std::string fname_out; //"text output file name\n",
+    
+  
 };
 
 
@@ -47,10 +49,10 @@ class ofxWhisper: public ofThread{
     int n_samples_step = 0;
     int n_samples_len = 0;
     int n_samples_keep = 0;
-    bool use_vad = false;
+//    bool use_vad = false;
     int n_new_line = 1;
     bool bIsSetup = false;
-    
+    bool use_vad = false;
     
     uint64_t t_last;
     uint64_t t_start;
@@ -72,7 +74,7 @@ public:
     
     std::string getInfoString();
     
-    void setup(ofxWhisperSettings _settings);
+    void setup(ofxWhisperSettings _settings, bool _use_vad = false);
 
     std::string to_timestamp(int64_t t) ;
     
@@ -80,5 +82,6 @@ public:
     
     void update();
     
+    std::vector<float> pcmf32_old;
     
 };
